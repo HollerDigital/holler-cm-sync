@@ -81,13 +81,17 @@ class Plugin {
 	 * @access public
 	 */
 	public function __construct() {
-  
- 
+		
+			add_action('wp', array($this, 'schedule_cron_job'));
 
-		add_action( 'init', function() {
-	
+        	// Hook your cron job function to your custom cron event
+        	add_action('holler_sync_contacts', array($this, 'execute_cron_job'));
+
+			add_action('user_register', array($this, 'holler_sync_register'));
+			add_action('delete_user', array($this, 'holler_sync_delete'));
+
+			add_action( 'init', function() {
 			// Here its safe to include our action class file
-			require_once 'inc/class.php';
 			require_once 'inc/settings-page.php';
 			require_once 'inc/campaignmonitor/csrest_general.php';
 			require_once 'inc/campaignmonitor/csrest_subscribers.php';
@@ -95,6 +99,105 @@ class Plugin {
 
 		});
 	}
+
+	public function holler_sync_delete($user_id){
+		// Get user data before the user is deleted
+		$user_info = get_userdata($user_id);
+		if ($user_info) {
+			// Access user's email
+			$user_email = $user_info->user_email;
+
+			// get the CM options from WP
+			$cm_options = get_option('holler_signup_cm_settings');
+			// run sync only if the API key is set.
+
+			if(strlen(trim($cm_options['api_key'])) > 0 ) {
+				require_once 'inc/campaignmonitor/csrest_general.php';
+				require_once 'inc/campaignmonitor/csrest_subscribers.php';
+				require_once 'inc/campaignmonitor/csrest_clients.php';
+		
+				$wrap = new CS_REST_Subscribers($cm_options['list'], $cm_options['api_key']);
+				$result = $wrap->unsubscribe($user_email);
+				if($result->was_successful()) {
+					echo "Unsubscribed with code ".$result->http_status_code;
+				} else {
+					echo 'Failed with code '.$result->http_status_code."\n<br /><pre>";
+					var_dump($result->response);
+					echo '</pre>';
+				}
+			}
+		}
+	}
+
+	public function holler_sync_register($user_id){
+		$user_info = get_userdata($user_id);
+		if ($user_info) {
+			// Access user's email
+			$user_email = $user_info->user_email;
+			// $username = $user_info->user_login;
+			$first_name = $user_info->first_name;
+			$last_name = $user_info->last_name;
+
+			// get the CM options from WP
+			$cm_options = get_option('holler_signup_cm_settings');
+			
+			// run sync only if the API key is set.
+			if(strlen(trim($cm_options['api_key'])) > 0 ) {
+				require_once 'inc/campaignmonitor/csrest_general.php';
+				require_once 'inc/campaignmonitor/csrest_subscribers.php';
+			  	require_once 'inc/campaignmonitor/csrest_clients.php';
+	  
+			  	$wrap = new CS_REST_Subscribers($cm_options['list'], $cm_options['api_key']);
+				  $result = false;
+				  $subscribe = $wrap->add(array(
+					  'EmailAddress' => $user_email,
+					  'Name' => $first_name . " " . $last_name,
+					  'ConsentToTrack' => 'yes',
+					  'Resubscribe' => true
+				  ));
+  
+				  if($subscribe->was_successful()) {
+					  $res =  "Subscribed with code ".$result->http_status_code;
+					  error_log($res,0);
+					  $result = true;
+				
+					} else {
+					  $res =  'Failed with code '.$result->http_status_code."\n";
+					  error_log($res,0);
+					  $result = false;
+					}
+			}
+		}
+	}
+
+	public function schedule_cron_job() {
+        if (!wp_next_scheduled('holler_sync_contacts')) {
+            wp_schedule_event(time(), 'hourly', 'holler_sync_contacts');
+        }
+    }
+
+	public function add_subscriber(){
+
+	}
+
+    public function execute_cron_job() {
+		 
+
+			$args = array(
+				'role'    => '', // Leave empty to get users of all roles
+				'orderby' => 'login',
+				'order'   => 'ASC',
+			);
+
+			$users = get_users($args);
+
+			// Loop through the users
+			foreach ($users as $user) {
+				$this->holler_sync_register($user->ID);
+			}
+		}
+ 
+
 }
 
 // Instantiate Plugin Class
