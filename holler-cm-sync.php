@@ -139,7 +139,10 @@ class Plugin {
 
 	public function holler_sync_register($user_id){
 		$user_info = get_userdata($user_id);
-		if ($user_info) {
+		$is_subscribed = get_user_meta($user_id, 'newsletter_subscriber', true);
+		$checked = !empty($is_subscribed) ? $is_subscribed : 'yes'; // Default to 'yes' if no preference is saved
+		
+		if ( $user_info && $checked ==  'yes' ) {
 			// Access user's email
 			$user_email = $user_info->user_email;
 			// $username = $user_info->user_login;
