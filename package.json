@@ -1,0 +1,21 @@
+{
+	"name": "holler-cm-sync",
+	"version": "1.0.0",
+	"description": "Gulpfile setup for Javascript ES6 compiling, plus SCSS, images, and fonts handling",
+	"author": "James Murgatroyd <hello@hollerdigital.com> (https://hollerdigital.com)",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/HollerDigital/holler-cm-sync"
+	},
+	"keywords": [
+		"gulp",
+		"es6",
+		"scss"
+	],
+	"dependencies": {
+	},
+	"devDependencies": {
+
+	},
+	"license": "GPL-3.0"
+}
