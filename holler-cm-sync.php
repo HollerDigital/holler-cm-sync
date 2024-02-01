@@ -90,6 +90,14 @@ class Plugin {
 			add_action('user_register', array($this, 'holler_sync_register'));
 			add_action('delete_user', array($this, 'holler_sync_delete'));
 
+			// Add the custom field to the user profile page
+			add_action('show_user_profile', array($this, 'show_newsletter_subscriber_field'));
+			add_action('edit_user_profile', array($this, 'show_newsletter_subscriber_field'));
+			
+			// Save the custom field value when the user profile is updated
+    		add_action('personal_options_update', array($this, 'save_newsletter_subscriber_field'));
+    		add_action('edit_user_profile_update', array($this, 'save_newsletter_subscriber_field'));
+
 			add_action( 'init', function() {
 			// Here its safe to include our action class file
 			require_once 'inc/settings-page.php';
@@ -172,7 +180,7 @@ class Plugin {
 
 	public function schedule_cron_job() {
         if (!wp_next_scheduled('holler_sync_contacts')) {
-            wp_schedule_event(time(), 'hourly', 'holler_sync_contacts');
+            wp_schedule_event(time(), 'daily', 'holler_sync_contacts');
         }
     }
 
@@ -198,7 +206,46 @@ class Plugin {
 		}
  
 
-}
+		public function show_newsletter_subscriber_field($user) {
+			// Determine if the user has already a preference saved or default to 'yes'
+			$is_subscribed = get_user_meta($user->ID, 'newsletter_subscriber', true);
+			$checked = !empty($is_subscribed) ? $is_subscribed : 'yes'; // Default to 'yes' if no preference is saved
+			?>
+			<h3><?php esc_html_e("Newsletter Subscription", "holler"); ?></h3>
+		
+			<table class="form-table">
+				<tr>
+					<th><label for="newsletter_subscriber"><?php esc_html_e("Subscribe to Newsletter", "holler"); ?></label></th>
+					<td>
+						<input type="checkbox" name="newsletter_subscriber" id="newsletter_subscriber" value="yes" <?php checked('yes', $checked); ?> />
+						<span class="description"><?php esc_html_e("Check to subscribe to the newsletter.", "holler"); ?></span>
+					</td>
+				</tr>
+			</table>
+			<?php
+		}
+		
+	
+		/**
+		 * Save the newsletter subscriber checkbox from the user profile
+		 */
+		public function save_newsletter_subscriber_field($user_id) {
+			if (!current_user_can('edit_user', $user_id)) {
+				return false;
+			}
+	
+			update_user_meta($user_id, 'newsletter_subscriber', isset($_POST['newsletter_subscriber']) ? 'yes' : 'no');
+
+			$is_subscribed = isset( $_POST['newsletter_subscriber']) ? 'yes' : 'no';
+
+			if($is_subscribed == 'no'){
+				$this->holler_sync_delete($user_id);
+			} else{
+				$this->holler_sync_register($user_id);
+			}
+		}
+	}
+
 
 // Instantiate Plugin Class
 Plugin::instance();
