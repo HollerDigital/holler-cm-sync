@@ -23,7 +23,13 @@ add_action( 'admin_init', 'holler_signup_register_settings', 100 );
 
 function holler_signup_settings_menu() {
 	// add settings page
-	add_options_page(__('Campaign Monitor', 'holler'), __('Campaign Monitor', 'holler'), 'manage_options', 'pippin-campaign-monitor', 'holler_signup_settings_page');
+	add_options_page(
+		__('Campaign Monitor', 'holler'), 
+		__('Campaign Monitor', 'holler'), 
+		'manage_options', 
+		'holler-campaign-monitor-sync', 
+		'holler_signup_settings_page'
+	);
 }
 add_action('admin_menu', 'holler_signup_settings_menu', 10);
 
