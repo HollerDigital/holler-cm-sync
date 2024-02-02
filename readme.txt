@@ -4,8 +4,8 @@ Donate link: https://hollerdigital.com/
 Tags: holler-cm-sync
 Requires at least: 4.7
 Tested up to: 5.8.1
-Stable tag: 1.0.2
-Requires PHP: 8.0
+Stable tag: 1.0.3
+Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,10 @@ Documentation to come.
 
 == Changelog ==
 
-= 1.0.1 - 01.02.2024 =
+= 1.0.3 - 02.02.2024 =
+* updated cron to set default user meta to true if updated.
+
+= 1.0.2 - 01.02.2024 =
 * added unsubscribe cron
 
 = 1.0.1 - 01.02.2024 =

@@ -3,7 +3,7 @@
  * Plugin Name: Holler CM Sync
  * Description: This plugin adds the ability to Sync Wordpress Users to Campaign Monitor :)
  * Plugin URI: http://hollerdigital.com/
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Holler Digital
  * Author URI: http://hollerdigital.com/
  * Text Domain: holler
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define Globals
 define('HOLLER_CMSYNC_URL', WP_PLUGIN_URL."/".dirname( plugin_basename( __FILE__ ) ) );
 define('HOLLER_CMSYNC_PATH', WP_PLUGIN_DIR."/".dirname( plugin_basename( __FILE__ ) ) );
-define("HOLLER_CMSYNC_VERSION", "1.0.21");
+define("HOLLER_CMSYNC_VERSION", "1.0.3");
 
 // Plugin Updater
 // https://github.com/YahnisElsts/plugin-update-checker
@@ -174,11 +174,13 @@ class Plugin {
   
 				  if($subscribe->was_successful()) {
 					  $res =  "Subscribed with code ".$result->http_status_code;
+					  update_user_meta($user_id, 'newsletter_subscriber',  'yes' );
 					  error_log($res,0);
 					  $result = true;
 				
 					} else {
 					  $res =  'Failed with code '.$result->http_status_code."\n";
+					  update_user_meta($user_id, 'newsletter_subscriber',  'no' );
 					  error_log($res,0);
 					  $result = false;
 					}
@@ -292,7 +294,7 @@ class Plugin {
 
 			if($is_subscribed == 'no'){
 				$this->holler_sync_delete($user_id);
-			} else{
+			} else {
 				$this->holler_sync_register($user_id);
 			}
 		}
