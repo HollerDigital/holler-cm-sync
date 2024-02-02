@@ -3,7 +3,7 @@
  * Plugin Name: Holler CM Sync
  * Description: This plugin adds the ability to Sync Wordpress Users to Campaign Monitor :)
  * Plugin URI: http://hollerdigital.com/
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Holler Digital
  * Author URI: http://hollerdigital.com/
  * Text Domain: holler
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define Globals
 define('HOLLER_CMSYNC_URL', WP_PLUGIN_URL."/".dirname( plugin_basename( __FILE__ ) ) );
 define('HOLLER_CMSYNC_PATH', WP_PLUGIN_DIR."/".dirname( plugin_basename( __FILE__ ) ) );
-define("HOLLER_CMSYNC_VERSION", "1.0.1");
+define("HOLLER_CMSYNC_VERSION", "1.0.21");
 
 // Plugin Updater
 // https://github.com/YahnisElsts/plugin-update-checker
@@ -81,11 +81,16 @@ class Plugin {
 	 * @access public
 	 */
 	public function __construct() {
-		
+
+			// Schedule the cron job
+			add_action('wp', array($this, 'schedule_unsubscribe_check'));
 			add_action('wp', array($this, 'schedule_cron_job'));
 
         	// Hook your cron job function to your custom cron event
         	add_action('holler_sync_contacts', array($this, 'execute_cron_job'));
+
+			// Hook the function to run on your scheduled event
+			add_action('holler_check_unsubscribes', array($this, 'check_campaign_monitor_unsubscribes'));
 
 			add_action('user_register', array($this, 'holler_sync_register'));
 			add_action('delete_user', array($this, 'holler_sync_delete'));
@@ -186,47 +191,91 @@ class Plugin {
             wp_schedule_event(time(), 'daily', 'holler_sync_contacts');
         }
     }
-
-	public function add_subscriber(){
-
+	
+	public function schedule_unsubscribe_check() {
+		if (!wp_next_scheduled('holler_check_unsubscribes')) {
+			wp_schedule_event(time(), 'daily', 'holler_check_unsubscribes');
+		}
 	}
+
 
     public function execute_cron_job() {
 		 
+		$args = array(
+			'role'    => '', // Leave empty to get users of all roles
+			'orderby' => 'login',
+			'order'   => 'ASC',
+		);
 
-			$args = array(
-				'role'    => '', // Leave empty to get users of all roles
-				'orderby' => 'login',
-				'order'   => 'ASC',
-			);
+		$users = get_users($args);
 
-			$users = get_users($args);
-
-			// Loop through the users
-			foreach ($users as $user) {
-				$this->holler_sync_register($user->ID);
-			}
+		// Loop through the users
+		foreach ($users as $user) {
+			$this->holler_sync_register($user->ID);
 		}
- 
-
-		public function show_newsletter_subscriber_field($user) {
-			// Determine if the user has already a preference saved or default to 'yes'
-			$is_subscribed = get_user_meta($user->ID, 'newsletter_subscriber', true);
-			$checked = !empty($is_subscribed) ? $is_subscribed : 'yes'; // Default to 'yes' if no preference is saved
-			?>
-			<h3><?php esc_html_e("Newsletter Subscription", "holler"); ?></h3>
+	}
+	
+	public function check_campaign_monitor_unsubscribes() {
+		require_once 'inc/campaignmonitor/csrest_general.php';
+	require_once 'inc/campaignmonitor/csrest_subscribers.php';
+	require_once 'inc/campaignmonitor/csrest_clients.php';
+	require_once 'inc/campaignmonitor/csrest_lists.php';
+	
+	$cm_options = get_option('holler_signup_cm_settings');
 		
-			<table class="form-table">
-				<tr>
-					<th><label for="newsletter_subscriber"><?php esc_html_e("Subscribe to Newsletter", "holler"); ?></label></th>
-					<td>
-						<input type="checkbox" name="newsletter_subscriber" id="newsletter_subscriber" value="yes" <?php checked('yes', $checked); ?> />
-						<span class="description"><?php esc_html_e("Check to subscribe to the newsletter.", "holler"); ?></span>
-					</td>
-				</tr>
-			</table>
-			<?php
+		// run sync only if the API key is set.
+	if(strlen(trim($cm_options['api_key'])) > 0 ) {
+	
+		$wrap = new CS_REST_Lists($cm_options['list'], $cm_options['api_key']);
+	
+		// Fetch unsubscribed subscribers
+		// $result = $wrap->get_unsubscribed(date('Y-m-d', strtotime('-7 day'))); // Check for unsubscribes since yesterday
+		$result = $wrap->get_unsubscribed_subscribers(date('Y-m-d', strtotime('-2 day')), 1, 50, 'email', 'asc');
+		
+		if ($result->was_successful()) {
+			 
+			$unsubscribes = $result->response->Results;
+	
+			foreach ($unsubscribes as $unsubscribedUser) {
+				$email = strtolower($unsubscribedUser->EmailAddress);
+				
+				// Find WordPress user by email
+				$user = get_user_by('email', $email);
+				
+				if ($user) {
+					// echo 'User ID: ' . $user->ID;
+					// Update user meta to reflect unsubscribe status
+					update_user_meta($user->ID, 'newsletter_subscriber', 'no');
+					 
+				} else {
+					// User not found
+					// echo 'No user found with that email.';
+				}
+			}
+		} else {
+			error_log('Failed to retrieve unsubscribed subscribers: ' . $result->http_status_code);
 		}
+	}
+	}	
+
+	public function show_newsletter_subscriber_field($user) {
+		// Determine if the user has already a preference saved or default to 'yes'
+		$is_subscribed = get_user_meta($user->ID, 'newsletter_subscriber', true);
+		$checked = !empty($is_subscribed) ? $is_subscribed : 'yes'; // Default to 'yes' if no preference is saved
+		?>
+		<h3><?php esc_html_e("Newsletter Subscription", "holler"); ?></h3>
+	
+		<table class="form-table">
+			<tr>
+				<th><label for="newsletter_subscriber"><?php esc_html_e("Subscribe to Newsletter", "holler"); ?></label></th>
+				<td>
+					<input type="checkbox" name="newsletter_subscriber" id="newsletter_subscriber" value="yes" <?php checked('yes', $checked); ?> />
+					<span class="description"><?php esc_html_e("Check to subscribe to the newsletter.", "holler"); ?></span>
+				</td>
+			</tr>
+		</table>
+		<?php
+	}
 		
 	
 		/**
@@ -252,3 +301,7 @@ class Plugin {
 
 // Instantiate Plugin Class
 Plugin::instance();
+
+
+
+ 
